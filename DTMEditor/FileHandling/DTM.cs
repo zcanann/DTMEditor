@@ -264,11 +264,13 @@ namespace DTMEditor.FileHandling
 				bw.Write(SyncGPU);
 				bw.Write(UsingNetplay);
 				bw.Write(PAL60);
-				
-				// Reserved
-				bw.Write(new byte[12]);
 
-				bw.Write(SecondDiscName);
+                // Reserved
+                bw.Write(new byte[2]);
+                bw.Write(new byte[1] { 1 });
+                bw.Write(new byte[9]);
+
+                bw.Write(SecondDiscName);
 				bw.Write(GitRevision);
 				bw.Write(DSPIROMHash);
 				bw.Write(DSPCoefHash);

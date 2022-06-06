@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -95,72 +96,13 @@ namespace DTMEditor
 			Application.Exit();
 		}
 
-		#endregion
+        #endregion
 
-		#region Frame ListBox Selection Handling
+        #region DTM Editing Functionality
 
-		private void frameListBox_SelectedIndexChanged(object sender, EventArgs e)
-		{
-			int index = frameListBox.SelectedIndex;
+        #region Button Handling
 
-			// Invalid index
-			if (index == -1)
-			{
-				aButtonCheckBox.Checked   = false;
-				bButtonCheckBox.Checked   = false;
-				xButtonCheckBox.Checked   = false;
-				yButtonCheckBox.Checked   = false;
-				zButtonCheckBox.Checked   = false;
-				dpadUpCheckBox.Checked    = false;
-				dpadDownCheckBox.Checked  = false;
-				dpadLeftCheckBox.Checked  = false;
-				dpadRightCheckBox.Checked = false;
-
-				// Center the control sticks
-				mainStickXAxisUpDown.Value = 128;
-				mainStickYAxisUpDown.Value = 128;
-				cstickXAxisUpDown.Value = 128;
-				cstickYAxisUpDown.Value = 128;
-
-				leftTriggerUpDown.Value  = leftTriggerUpDown.Minimum;
-				rightTriggerUpDown.Value = rightTriggerUpDown.Minimum;
-			}
-			else
-			{
-				DTMControllerDatum data = openedDtm.ControllerData[index];
-
-				// Buttons
-				aButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.A);
-				bButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.B);
-				xButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.X);
-				yButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.Y);
-				zButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.Z);
-				lButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.L);
-				rButtonCheckBox.Checked   = data.IsButtonPressed(GameCubeButton.R);
-				dpadUpCheckBox.Checked    = data.IsButtonPressed(GameCubeButton.DPadUp);
-				dpadDownCheckBox.Checked  = data.IsButtonPressed(GameCubeButton.DPadDown);
-				dpadLeftCheckBox.Checked  = data.IsButtonPressed(GameCubeButton.DPadLeft);
-				dpadRightCheckBox.Checked = data.IsButtonPressed(GameCubeButton.DPadRight);
-
-				// Axes
-				mainStickXAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.AnalogXAxis);
-				mainStickYAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.AnalogYAxis);
-				cstickXAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.CStickXAxis);
-				cstickYAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.CStickYAxis);
-
-				// Triggers
-				leftTriggerUpDown.Value  = data.GetTriggerValue(GameCubeTrigger.L);
-				rightTriggerUpDown.Value = data.GetTriggerValue(GameCubeTrigger.R);
-			}
-		}
-
-		#endregion
-
-		#region DTM Editing Functionality
-
-		#region Button Handling
-
-		private void startCheckBox_Click(object sender, EventArgs e)
+        private void startCheckBox_Click(object sender, EventArgs e)
 		{
 			ValidateButton(GameCubeButton.Start, startButtonCheckBox);
 		}
@@ -280,9 +222,9 @@ namespace DTMEditor
 			//       (No, simply catching the base exception type is *not* a good alternative).
 			try
 			{
-				openedDtm = new DTM(filePath);
-				frameListBox.DataSource = Enumerable.Range(0, openedDtm.ControllerData.Count())
-				                                    .Select(x => string.Format(Resources.MainFormFrameFormatString, x)).ToList();
+                openedDtm = new DTM(filePath);
+
+                frameListView.VirtualListSize = openedDtm.ControllerData.Count();
 			}
 			catch (FileNotFoundException fnfe)
 			{
@@ -301,28 +243,169 @@ namespace DTMEditor
 
 		private void ValidateButton(GameCubeButton button, CheckBox checkbox)
 		{
-			int index = frameListBox.SelectedIndex;
-
-			if (index != -1)
-				openedDtm.ControllerData[index].ModifyButton(button, checkbox.Checked);
+            for (int index = 0; index < frameListView.SelectedIndices.Count; index++)
+            {
+                openedDtm.ControllerData[frameListView.SelectedIndices[index]].ModifyButton(button, checkbox.Checked);
+            }
 		}
 
 		private void ValidateAxis(GameCubeAxis axis, NumericUpDown axisUpDown)
-		{
-			int index = frameListBox.SelectedIndex;
-
-			if (index != -1)
-				openedDtm.ControllerData[index].ModifyAxis(axis, (int)axisUpDown.Value);
+        {
+            for (int index = 0; index < frameListView.SelectedIndices.Count; index++)
+            {
+                openedDtm.ControllerData[frameListView.SelectedIndices[index]].ModifyAxis(axis, (int)axisUpDown.Value);
+            }
 		}
 
 		private void ValidateTrigger(GameCubeTrigger trigger, NumericUpDown axisUpDown)
-		{
-			int index = frameListBox.SelectedIndex;
-
-			if (index != -1)
-				openedDtm.ControllerData[index].ModifyTrigger(trigger, (int)axisUpDown.Value);
+        {
+            for (int index = 0; index < frameListView.SelectedIndices.Count; index++)
+            {
+                openedDtm.ControllerData[frameListView.SelectedIndices[index]].ModifyTrigger(trigger, (int)axisUpDown.Value);
+            }
 		}
 
-		#endregion
-	}
+        #endregion
+
+        Dictionary<int, ListViewItem> cache = new Dictionary<int, ListViewItem>();
+
+        private void frameListView_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
+        {
+            if (cache.ContainsKey(e.ItemIndex))
+            {
+                e.Item = cache[e.ItemIndex];
+                return;
+            }
+
+            cache[e.ItemIndex] = new ListViewItem(String.Format(Resources.MainFormFrameFormatString, e.ItemIndex));
+            e.Item = cache[e.ItemIndex];
+        }
+
+        private void frameListView_CacheVirtualItems(object sender, CacheVirtualItemsEventArgs e)
+        {
+            for (int index = e.StartIndex; index < e.EndIndex; index++)
+            {
+                if (!cache.ContainsKey(index))
+                {
+                    cache[index] = new ListViewItem(String.Format(Resources.MainFormFrameFormatString, index));
+                }
+            }
+        }
+
+        private void frameListView_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            int index = frameListView.SelectedIndices.Count > 0 ? frameListView.SelectedIndices[0] : -1;
+
+            // Invalid index
+            if (index == -1)
+            {
+                startButtonCheckBox.Checked = false;
+                aButtonCheckBox.Checked = false;
+                bButtonCheckBox.Checked = false;
+                xButtonCheckBox.Checked = false;
+                yButtonCheckBox.Checked = false;
+                zButtonCheckBox.Checked = false;
+                dpadUpCheckBox.Checked = false;
+                dpadDownCheckBox.Checked = false;
+                dpadLeftCheckBox.Checked = false;
+                dpadRightCheckBox.Checked = false;
+
+                // Center the control sticks
+                mainStickXAxisUpDown.Value = 128;
+                mainStickYAxisUpDown.Value = 128;
+                cstickXAxisUpDown.Value = 128;
+                cstickYAxisUpDown.Value = 128;
+
+                leftTriggerUpDown.Value = leftTriggerUpDown.Minimum;
+                rightTriggerUpDown.Value = rightTriggerUpDown.Minimum;
+            }
+            else
+            {
+                DTMControllerDatum data = openedDtm.ControllerData[index];
+
+                // Buttons
+                startButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.Start);
+                aButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.A);
+                bButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.B);
+                xButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.X);
+                yButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.Y);
+                zButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.Z);
+                lButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.L);
+                rButtonCheckBox.Checked = data.IsButtonPressed(GameCubeButton.R);
+                dpadUpCheckBox.Checked = data.IsButtonPressed(GameCubeButton.DPadUp);
+                dpadDownCheckBox.Checked = data.IsButtonPressed(GameCubeButton.DPadDown);
+                dpadLeftCheckBox.Checked = data.IsButtonPressed(GameCubeButton.DPadLeft);
+                dpadRightCheckBox.Checked = data.IsButtonPressed(GameCubeButton.DPadRight);
+
+                // Axes
+                mainStickXAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.AnalogXAxis);
+                mainStickYAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.AnalogYAxis);
+                cstickXAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.CStickXAxis);
+                cstickYAxisUpDown.Value = data.GetAxisValue(GameCubeAxis.CStickYAxis);
+
+                // Triggers
+                leftTriggerUpDown.Value = data.GetTriggerValue(GameCubeTrigger.L);
+                rightTriggerUpDown.Value = data.GetTriggerValue(GameCubeTrigger.R);
+            }
+        }
+
+        private void insertFrameButton_Click(object sender, EventArgs e)
+        {
+            int index = frameListView.SelectedIndices.Count > 0 ? frameListView.SelectedIndices[0] : -1;
+
+            // Invalid index
+            if (index == -1)
+            {
+                return;
+            }
+
+            cache.Clear();
+
+            openedDtm.ControllerData.Insert(index + 1, new DTMControllerDatum(openedDtm.ControllerData[index].Data));
+            frameListView.VirtualListSize = openedDtm.ControllerData.Count();
+
+            if (index < frameListView.Items.Count)
+            {
+                frameListView.Items[index].Selected = false;
+            }
+
+            if (index + 1 < frameListView.Items.Count)
+            {
+                frameListView.Items[index + 1].Selected = true;
+                frameListView.Items[index + 1].EnsureVisible();
+            }
+        }
+
+        private void goButton_Click(object sender, EventArgs e)
+        {
+            int index = frameListView.SelectedIndices.Count > 0 ? frameListView.SelectedIndices[0] : -1;
+
+            if (index != -1)
+            {
+                frameListView.Items[index].Selected = false;
+            }
+
+            int newFrame = (int)frameNumericUpDown.Value;
+
+            if (newFrame < frameListView.Items.Count)
+            {
+                frameListView.Items[newFrame].Selected = true;
+                frameListView.Items[newFrame].EnsureVisible();
+            }
+        }
+
+        private void deleteFramesButton_Click(object sender, EventArgs e)
+        {
+            int index = frameListView.SelectedIndices.Count > 0 ? frameListView.SelectedIndices[0] : -1;
+
+            if (index == -1)
+            {
+                return;
+            }
+
+            cache.Clear();
+
+            openedDtm.ControllerData.RemoveRange(index, frameListView.SelectedIndices.Count);
+        }
+    }
 }
