@@ -406,6 +406,7 @@ namespace DTMEditor
             cache.Clear();
 
             openedDtm.ControllerData.RemoveRange(index, frameListView.SelectedIndices.Count);
-        }
+			frameListView.VirtualListSize = openedDtm.ControllerData.Count();
+		}
     }
 }
